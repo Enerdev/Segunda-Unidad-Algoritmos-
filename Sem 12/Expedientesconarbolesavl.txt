@@ -1,0 +1,249 @@
+// Sistema de gestión de expedientes académicos con árbol AVL y medición de tiempo
+// Curso de Estructuras de Datos Avanzadas 
+package avl.expedientes;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.Random;
+
+public class AVLExpedientes2 extends JFrame {
+    private JTextField idField, nombreField;
+    private JTextArea salida;
+    private JButton insertarBtn, buscarBtn, eliminarBtn, insertarMasivoBtn;
+    private AVLTree avlTree = new AVLTree();
+    private PanelAVL panelAVL;
+
+    public AVLExpedientes2() {
+        super("Gestión de Expedientes Académicos - Árbol AVL (Versión 2)");
+        setSize(900, 650);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+
+        idField = new JTextField(6);
+        nombreField = new JTextField(10);
+        insertarBtn = new JButton("Insertar");
+        buscarBtn = new JButton("Buscar");
+        eliminarBtn = new JButton("Eliminar");
+        insertarMasivoBtn = new JButton("Insertar 100,000 aleatorios");
+        salida = new JTextArea(5, 40);
+        salida.setEditable(false);
+
+        panelAVL = new PanelAVL();
+
+        JPanel topPanel = new JPanel();
+        topPanel.add(new JLabel("ID:"));
+        topPanel.add(idField);
+        topPanel.add(new JLabel("Nombre:"));
+        topPanel.add(nombreField);
+        topPanel.add(insertarBtn);
+        topPanel.add(buscarBtn);
+        topPanel.add(eliminarBtn);
+        topPanel.add(insertarMasivoBtn);
+
+        JScrollPane scrollPane = new JScrollPane(salida);
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.add(scrollPane, BorderLayout.CENTER);
+
+        add(topPanel, BorderLayout.NORTH);
+        add(panelAVL, BorderLayout.CENTER);
+        add(bottomPanel, BorderLayout.SOUTH);
+
+        insertarBtn.addActionListener(e -> {
+            try {
+                int id = Integer.parseInt(idField.getText());
+                String nombre = nombreField.getText();
+                avlTree.insertar(id, nombre);
+                panelAVL.setRaiz(avlTree.getRaiz());
+                panelAVL.repaint();
+                salida.setText("Expediente insertado correctamente.\n");
+            } catch (Exception ex) {
+                salida.setText("Error al insertar: Verifique los datos.\n");
+            }
+        });
+
+        buscarBtn.addActionListener(e -> {
+            try {
+                int id = Integer.parseInt(idField.getText());
+                long inicio = System.nanoTime();
+                String resultado = avlTree.buscar(id);
+                long fin = System.nanoTime();
+                long tiempo = fin - inicio;
+                salida.setText((resultado != null ? "Nombre: " + resultado : "Expediente no encontrado.") +
+                        "\nTiempo de búsqueda: " + tiempo + " nanosegundos");
+            } catch (Exception ex) {
+                salida.setText("Error en la búsqueda.\n");
+            }
+        });
+
+        eliminarBtn.addActionListener(e -> {
+            try {
+                int id = Integer.parseInt(idField.getText());
+                avlTree.eliminar(id);
+                panelAVL.setRaiz(avlTree.getRaiz());
+                panelAVL.repaint();
+                salida.setText("Expediente eliminado correctamente.\n");
+            } catch (Exception ex) {
+                salida.setText("Error al eliminar.\n");
+            }
+        });
+
+        insertarMasivoBtn.addActionListener(e -> {
+            Random rand = new Random();
+            salida.setText("Insertando 100,000 expedientes...\n");
+            for (int i = 0; i < 100000; i++) {
+                int id = rand.nextInt(Integer.MAX_VALUE);
+                avlTree.insertar(id, "Estudiante" + id);
+            }
+            panelAVL.setRaiz(avlTree.getRaiz());
+            panelAVL.repaint();
+            salida.append("\nCarga masiva completada.");
+        });
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new AVLExpedientes2().setVisible(true));
+    }
+}
+
+// ------------------------- Clases auxiliares -------------------------
+
+class NodoAVL {
+    int id;
+    String nombre;
+    NodoAVL izq, der;
+    int altura;
+
+    NodoAVL(int id, String nombre) {
+        this.id = id;
+        this.nombre = nombre;
+        altura = 1;
+    }
+}
+
+class AVLTree {
+    private NodoAVL raiz;
+
+    public NodoAVL getRaiz() {
+        return raiz;
+    }
+
+    public void insertar(int id, String nombre) {
+        raiz = insertarRec(raiz, id, nombre);
+    }
+
+    private NodoAVL insertarRec(NodoAVL nodo, int id, String nombre) {
+        if (nodo == null) return new NodoAVL(id, nombre);
+        if (id < nodo.id) nodo.izq = insertarRec(nodo.izq, id, nombre);
+        else if (id > nodo.id) nodo.der = insertarRec(nodo.der, id, nombre);
+        else return nodo;
+
+        actualizarAltura(nodo);
+        return balancear(nodo);
+    }
+
+    public String buscar(int id) {
+        NodoAVL actual = raiz;
+        while (actual != null) {
+            if (id == actual.id) return actual.nombre;
+            actual = id < actual.id ? actual.izq : actual.der;
+        }
+        return null;
+    }
+
+    public void eliminar(int id) {
+        raiz = eliminarRec(raiz, id);
+    }
+
+    private NodoAVL eliminarRec(NodoAVL nodo, int id) {
+        if (nodo == null) return null;
+        if (id < nodo.id) nodo.izq = eliminarRec(nodo.izq, id);
+        else if (id > nodo.id) nodo.der = eliminarRec(nodo.der, id);
+        else {
+            if (nodo.izq == null) return nodo.der;
+            if (nodo.der == null) return nodo.izq;
+            NodoAVL sucesor = obtenerMin(nodo.der);
+            nodo.id = sucesor.id;
+            nodo.nombre = sucesor.nombre;
+            nodo.der = eliminarRec(nodo.der, sucesor.id);
+        }
+        actualizarAltura(nodo);
+        return balancear(nodo);
+    }
+
+    private NodoAVL obtenerMin(NodoAVL nodo) {
+        while (nodo.izq != null) nodo = nodo.izq;
+        return nodo;
+    }
+
+    private void actualizarAltura(NodoAVL nodo) {
+        nodo.altura = 1 + Math.max(altura(nodo.izq), altura(nodo.der));
+    }
+
+    private int altura(NodoAVL nodo) {
+        return nodo == null ? 0 : nodo.altura;
+    }
+
+    private int balanceFactor(NodoAVL nodo) {
+        return nodo == null ? 0 : altura(nodo.izq) - altura(nodo.der);
+    }
+
+    private NodoAVL balancear(NodoAVL nodo) {
+        int balance = balanceFactor(nodo);
+        if (balance > 1) {
+            if (balanceFactor(nodo.izq) < 0) nodo.izq = rotarIzquierda(nodo.izq);
+            return rotarDerecha(nodo);
+        }
+        if (balance < -1) {
+            if (balanceFactor(nodo.der) > 0) nodo.der = rotarDerecha(nodo.der);
+            return rotarIzquierda(nodo);
+        }
+        return nodo;
+    }
+
+    private NodoAVL rotarDerecha(NodoAVL y) {
+        NodoAVL x = y.izq;
+        NodoAVL T2 = x.der;
+        x.der = y;
+        y.izq = T2;
+        actualizarAltura(y);
+        actualizarAltura(x);
+        return x;
+    }
+
+    private NodoAVL rotarIzquierda(NodoAVL x) {
+        NodoAVL y = x.der;
+        NodoAVL T2 = y.izq;
+        y.izq = x;
+        x.der = T2;
+        actualizarAltura(x);
+        actualizarAltura(y);
+        return y;
+    }
+}
+
+class PanelAVL extends JPanel {
+    private NodoAVL raiz;
+
+    public void setRaiz(NodoAVL raiz) {
+        this.raiz = raiz;
+    }
+
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        if (raiz != null) dibujar(g, raiz, getWidth() / 2, 30, getWidth() / 4);
+    }
+
+    private void dibujar(Graphics g, NodoAVL nodo, int x, int y, int sep) {
+        g.setColor(Color.BLACK);
+        g.drawOval(x - 15, y - 15, 30, 30);
+        g.drawString("" + nodo.id, x - 10, y + 5);
+        if (nodo.izq != null) {
+            g.drawLine(x, y, x - sep, y + 50);
+            dibujar(g, nodo.izq, x - sep, y + 50, sep / 2);
+        }
+        if (nodo.der != null) {
+            g.drawLine(x, y, x + sep, y + 50);
+            dibujar(g, nodo.der, x + sep, y + 50, sep / 2);
+        }
+    }
+}

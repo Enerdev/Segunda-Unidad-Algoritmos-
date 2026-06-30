@@ -1,0 +1,195 @@
+package expresion.arbol;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
+
+public class ArbolExpresion extends JFrame {
+    private JTextField expresionInput;
+    private JButton evaluarBtn;
+    private JTextArea salida;
+    private PanelArbol panelArbol;
+    private NodoArbol raiz;
+
+    public ArbolExpresion() {
+        super("Evaluador de Árbol de Expresión");
+        setSize(800, 600);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+
+        expresionInput = new JTextField(30);
+        evaluarBtn = new JButton("Evaluar");
+        salida = new JTextArea(5, 40);
+        salida.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(salida);
+
+        panelArbol = new PanelArbol();
+
+        JPanel topPanel = new JPanel();
+        topPanel.add(new JLabel("Expresión infija (ej: 3 + (2 * 5)):"));
+        topPanel.add(expresionInput);
+        topPanel.add(evaluarBtn);
+
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.add(scrollPane, BorderLayout.CENTER);
+
+        add(topPanel, BorderLayout.NORTH);
+        add(panelArbol, BorderLayout.CENTER);
+        add(bottomPanel, BorderLayout.SOUTH);
+
+        evaluarBtn.addActionListener(e -> evaluarExpresion());
+    }
+
+    private void evaluarExpresion() {
+        String infijo = expresionInput.getText();
+        try {
+            raiz = construirArbolDesdeInfijo(infijo);
+            double resultado = evaluar(raiz);
+            salida.setText("");
+            salida.append("Recorrido en preorden: " + preorden(raiz).trim() + "\n");
+            salida.append("Recorrido en inorden: " + inorden(raiz).trim() + "\n");
+            salida.append("Recorrido en postorden: " + postorden(raiz).trim() + "\n");
+            salida.append("\nResultado de la expresión: " + resultado);
+            panelArbol.setRaiz(raiz);
+            panelArbol.repaint();
+        } catch (Exception ex) {
+            salida.setText("Error: expresión inválida");
+        }
+    }
+
+    private NodoArbol construirArbolDesdeInfijo(String expresion) {
+        String postfix = infijoAPostfijo(expresion);
+        Stack<NodoArbol> pila = new Stack<>();
+
+        for (String token : postfix.split(" ")) {
+            if (esNumero(token)) {
+                pila.push(new NodoArbol(token));
+            } else {
+                NodoArbol der = pila.pop();
+                NodoArbol izq = pila.pop();
+                NodoArbol operador = new NodoArbol(token);
+                operador.izq = izq;
+                operador.der = der;
+                pila.push(operador);
+            }
+        }
+        return pila.pop();
+    }
+
+    private String infijoAPostfijo(String infijo) {
+        StringBuilder salida = new StringBuilder();
+        Stack<String> pila = new Stack<>();
+        StringTokenizer tokens = new StringTokenizer(infijo, "()+-*/ ", true);
+
+        while (tokens.hasMoreTokens()) {
+            String tok = tokens.nextToken().trim();
+            if (tok.isEmpty()) continue;
+            if (esNumero(tok)) {
+                salida.append(tok).append(" ");
+            } else if (tok.equals("(")) {
+                pila.push(tok);
+            } else if (tok.equals(")")) {
+                while (!pila.isEmpty() && !pila.peek().equals("(")) {
+                    salida.append(pila.pop()).append(" ");
+                }
+                pila.pop();
+            } else {
+                while (!pila.isEmpty() && prioridad(pila.peek()) >= prioridad(tok)) {
+                    salida.append(pila.pop()).append(" ");
+                }
+                pila.push(tok);
+            }
+        }
+        while (!pila.isEmpty()) {
+            salida.append(pila.pop()).append(" ");
+        }
+        return salida.toString().trim();
+    }
+
+    private int prioridad(String op) {
+        return switch (op) {
+            case "+", "-" -> 1;
+            case "*", "/" -> 2;
+            default -> 0;
+        };
+    }
+
+    private boolean esNumero(String s) {
+        try {
+            Double.parseDouble(s);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private double evaluar(NodoArbol nodo) {
+        if (nodo.izq == null && nodo.der == null) return Double.parseDouble(nodo.valor);
+        double izq = evaluar(nodo.izq);
+        double der = evaluar(nodo.der);
+        return switch (nodo.valor) {
+            case "+" -> izq + der;
+            case "-" -> izq - der;
+            case "*" -> izq * der;
+            case "/" -> izq / der;
+            default -> 0;
+        };
+    }
+
+    private String postorden(NodoArbol nodo) {
+        if (nodo == null) return "";
+        return postorden(nodo.izq) + postorden(nodo.der) + nodo.valor + " ";
+    }
+
+    private String preorden(NodoArbol nodo) {
+        if (nodo == null) return "";
+        return nodo.valor + " " + preorden(nodo.izq) + preorden(nodo.der);
+    }
+
+    private String inorden(NodoArbol nodo) {
+        if (nodo == null) return "";
+        return inorden(nodo.izq) + nodo.valor + " " + inorden(nodo.der);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            new ArbolExpresion().setVisible(true);
+        });
+    }
+
+    class NodoArbol {
+        String valor;
+        NodoArbol izq, der;
+
+        NodoArbol(String valor) {
+            this.valor = valor;
+        }
+    }
+
+    class PanelArbol extends JPanel {
+        private NodoArbol raiz;
+
+        public void setRaiz(NodoArbol raiz) {
+            this.raiz = raiz;
+        }
+
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (raiz != null) dibujar(g, raiz, getWidth() / 2, 30, getWidth() / 4);
+        }
+
+        private void dibujar(Graphics g, NodoArbol nodo, int x, int y, int separacion) {
+            g.setColor(Color.BLACK);
+            g.drawOval(x - 15, y - 15, 30, 30);
+            g.drawString(nodo.valor, x - 5, y + 5);
+            if (nodo.izq != null) {
+                g.drawLine(x, y, x - separacion, y + 50);
+                dibujar(g, nodo.izq, x - separacion, y + 50, separacion / 2);
+            }
+            if (nodo.der != null) {
+                g.drawLine(x, y, x + separacion, y + 50);
+                dibujar(g, nodo.der, x + separacion, y + 50, separacion / 2);
+            }
+        }
+    }
+}

@@ -1,0 +1,236 @@
+import tkinter as tk
+from tkinter import scrolledtext
+import random
+import time
+
+class NodoAVL:
+    def __init__(self, id, nombre):
+        self.id = id
+        self.nombre = nombre
+        self.izq = None
+        self.der = None
+        self.altura = 1
+
+class AVLTree:
+    def __init__(self):
+        self.raiz = None
+
+    def insertar(self, id, nombre):
+        self.raiz = self._insertar_rec(self.raiz, id, nombre)
+
+    def _insertar_rec(self, nodo, id, nombre):
+        if not nodo:
+            return NodoAVL(id, nombre)
+        if id < nodo.id:
+            nodo.izq = self._insertar_rec(nodo.izq, id, nombre)
+        elif id > nodo.id:
+            nodo.der = self._insertar_rec(nodo.der, id, nombre)
+        else:
+            return nodo
+
+        nodo.altura = 1 + max(self._altura(nodo.izq), self._altura(nodo.der))
+        return self._balancear(nodo)
+
+    def buscar(self, id):
+        actual = self.raiz
+        while actual:
+            if id == actual.id:
+                return actual.nombre
+            actual = actual.izq if id < actual.id else actual.der
+        return None
+
+    def eliminar(self, id):
+        self.raiz = self._eliminar_rec(self.raiz, id)
+
+    def _eliminar_rec(self, nodo, id):
+        if not nodo:
+            return None
+        if id < nodo.id:
+            nodo.izq = self._eliminar_rec(nodo.izq, id)
+        elif id > nodo.id:
+            nodo.der = self._eliminar_rec(nodo.der, id)
+        else:
+            if not nodo.izq:
+                return nodo.der
+            if not nodo.der:
+                return nodo.izq
+            temp = self._min(nodo.der)
+            nodo.id, nodo.nombre = temp.id, temp.nombre
+            nodo.der = self._eliminar_rec(nodo.der, temp.id)
+
+        nodo.altura = 1 + max(self._altura(nodo.izq), self._altura(nodo.der))
+        return self._balancear(nodo)
+
+    def _min(self, nodo):
+        while nodo.izq:
+            nodo = nodo.izq
+        return nodo
+
+    def _altura(self, nodo):
+        return nodo.altura if nodo else 0
+
+    def _balance_factor(self, nodo):
+        return self._altura(nodo.izq) - self._altura(nodo.der)
+
+    def _balancear(self, nodo):
+        balance = self._balance_factor(nodo)
+        if balance > 1:
+            if self._balance_factor(nodo.izq) < 0:
+                nodo.izq = self._rotar_izquierda(nodo.izq)
+            return self._rotar_derecha(nodo)
+        if balance < -1:
+            if self._balance_factor(nodo.der) > 0:
+                nodo.der = self._rotar_derecha(nodo.der)
+            return self._rotar_izquierda(nodo)
+        return nodo
+
+    def _rotar_derecha(self, y):
+        x = y.izq
+        T2 = x.der
+        x.der = y
+        y.izq = T2
+        y.altura = 1 + max(self._altura(y.izq), self._altura(y.der))
+        x.altura = 1 + max(self._altura(x.izq), self._altura(x.der))
+        return x
+
+    def _rotar_izquierda(self, x):
+        y = x.der
+        T2 = y.izq
+        y.izq = x
+        x.der = T2
+        x.altura = 1 + max(self._altura(x.izq), self._altura(x.der))
+        y.altura = 1 + max(self._altura(y.izq), self._altura(y.der))
+        return y
+
+class AVLApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Gestión de Expedientes Académicos - AVL")
+        self.root.geometry("920x680")
+
+        self.tree = AVLTree()
+        self.nodo_encontrado = None
+        self.nodo_eliminado = None
+
+        self.canvas = tk.Canvas(root, bg="white", height=400)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+
+        frame = tk.Frame(root)
+        frame.pack(pady=5)
+
+        self.id_entry = tk.Entry(frame, width=8)
+        self.nombre_entry = tk.Entry(frame, width=12)
+        self.salida = scrolledtext.ScrolledText(root, height=6)
+
+        tk.Label(frame, text="ID:").pack(side=tk.LEFT)
+        self.id_entry.pack(side=tk.LEFT)
+        tk.Label(frame, text="Nombre:").pack(side=tk.LEFT)
+        self.nombre_entry.pack(side=tk.LEFT)
+
+        tk.Button(frame, text="Insertar", command=self.insertar).pack(side=tk.LEFT)
+        tk.Button(frame, text="Buscar", command=self.buscar).pack(side=tk.LEFT)
+        tk.Button(frame, text="Eliminar", command=self.eliminar).pack(side=tk.LEFT)
+        tk.Button(frame, text="Insertar 100,000", command=self.insertar_masivo).pack(side=tk.LEFT)
+
+        self.salida.pack(fill=tk.X)
+
+    def insertar(self):
+        try:
+            id = int(self.id_entry.get())
+            nombre = self.nombre_entry.get()
+            self.tree.insertar(id, nombre)
+            self.nodo_encontrado = None
+            self.dibujar()
+            self.salida.insert(tk.END, "Expediente insertado correctamente.\n")
+        except:
+            self.salida.insert(tk.END, "Error al insertar: Verifique los datos.\n")
+
+    def buscar(self):
+        try:
+            id = int(self.id_entry.get())
+            inicio = time.perf_counter_ns()
+            resultado = self.tree.buscar(id)
+            fin = time.perf_counter_ns()
+            tiempo = fin - inicio
+            self.nodo_encontrado = id
+            self.dibujar()
+            msg = f"Nombre: {resultado}" if resultado else "Expediente no encontrado."
+            self.salida.insert(tk.END, f"{msg}\nTiempo: {tiempo} ns\n")
+        except:
+            self.salida.insert(tk.END, "Error en la búsqueda.\n")
+
+    def eliminar(self):
+        try:
+            id = int(self.id_entry.get())
+            self.nodo_eliminado = id
+            self.dibujar()
+            self.root.after(800, lambda: self._eliminar_real(id))
+        except:
+            self.salida.insert(tk.END, "Error al eliminar.\n")
+
+    def _eliminar_real(self, id):
+        self.tree.eliminar(id)
+        self.nodo_eliminado = None
+        self.dibujar()
+        self.salida.insert(tk.END, "Expediente eliminado correctamente.\n")
+
+    def insertar_masivo(self):
+        for _ in range(100000):
+            id = random.randint(1, 999999999)
+            self.tree.insertar(id, f"Estudiante{id}")
+        self.dibujar()
+        self.salida.insert(tk.END, "Carga masiva completada.\n")
+
+    def dibujar(self):
+        self.canvas.delete("all")
+        if self.tree.raiz:
+            self._dibujar_nodo(self.tree.raiz, 450, 40, 200)
+
+    def _dibujar_nodo(self, nodo, x, y, sep):
+        if not nodo:
+            return
+
+        radio_x = 30
+        radio_y = 20
+
+        color = "black"
+        if nodo.id == self.nodo_encontrado:
+            color = "red"
+        elif nodo.id == self.nodo_eliminado:
+            color = "orange"
+
+        self.canvas.create_oval(x - radio_x, y - radio_y, x + radio_x, y + radio_y, outline=color, width=2)
+        texto = f"{nodo.id}\n{nodo.nombre[:10]}"
+        self.canvas.create_text(x, y, text=texto, font=("Arial", 8), justify=tk.CENTER)
+
+        if nodo.izq:
+            hijo_x = x - sep
+            hijo_y = y + 70
+            self._linea_entre_nodos(x, y, hijo_x, hijo_y, radio_x, radio_y)
+            self._dibujar_nodo(nodo.izq, hijo_x, hijo_y, sep // 2)
+
+        if nodo.der:
+            hijo_x = x + sep
+            hijo_y = y + 70
+            self._linea_entre_nodos(x, y, hijo_x, hijo_y, radio_x, radio_y)
+            self._dibujar_nodo(nodo.der, hijo_x, hijo_y, sep // 2)
+
+    def _linea_entre_nodos(self, x1, y1, x2, y2, rx, ry):
+        dx = x2 - x1
+        dy = y2 - y1
+        dist = (dx**2 + dy**2)**0.5
+        if dist == 0:
+            return
+        offset_x = dx * rx / dist
+        offset_y = dy * ry / dist
+        start_x = x1 + offset_x
+        start_y = y1 + offset_y
+        end_x = x2 - offset_x
+        end_y = y2 - offset_y
+        self.canvas.create_line(start_x, start_y, end_x, end_y)
+
+# Ejecutar la aplicación
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AVLApp(root)
+    root.mainloop()
